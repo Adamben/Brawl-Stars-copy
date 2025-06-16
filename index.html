@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>2D Multiplayer Shooter</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css"/>
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; touch-action:none; background:#222; }
+    canvas#game { position:absolute; top:0; left:0; z-index:1; }
+    #startOverlay, #endOverlay {
+      position:absolute; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.8); color:white;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:10;
+    }
+    #endOverlay { display:none; }
+    #startOverlay input, #startOverlay button, #endOverlay button {
+      margin:4px; padding:8px; font-size:16px;
+    }
+    #ui { position:absolute; top:10px; left:10px; color:white; z-index:5; }
+    .joystick-zone { position:absolute; width:150px; height:150px; z-index:5; }
+    #leftZone  { bottom:20px; left:20px; }
+    #rightZone { bottom:20px; right:20px; }
+    #leaderboard { position:absolute; top:10px; right:10px; width:200px; height:150px; background:rgba(0,0,0,0.5); z-index:5; padding:8px; }
+  </style>
+</head>
+<body>
+
+  <canvas id="game"></canvas>
+
+  <div id="startOverlay">
+    <h1>2D Shooter</h1>
+    <button id="startGame">Enter Lobby</button>
+    <div id="connStatus" style="margin-top:12px;"></div>
+  </div>
+
+  <div id="endOverlay">
+    <h1 id="endMsg"></h1>
+    <button id="rematch">Rematch</button>
+  </div>
+
+  <div id="ui"></div>
+  <div id="leaderboard"></div>
+  <div id="leftZone" class="joystick-zone"></div>
+  <div id="rightZone" class="joystick-zone"></div>
+
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.9.0/dist/nipplejs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/howler@2.2.3/dist/howler.min.js"></script>
+
+  <!-- Your Modules -->
+  <script type="module" src="js/client.js"></script>
+
+</body>
+</html>
