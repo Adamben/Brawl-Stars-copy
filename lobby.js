@@ -1,123 +1,85 @@
 // lobby.js
-// Requires PeerJS (https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js)
+// Requires PeerJS: <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
-class Lobby {
-  constructor({ myId, roomId, maxPeers = 8, mode = 'FFA' }) {
-    this.peer       = new Peer(myId);
-    this.roomId     = roomId;
-    this.maxPeers   = maxPeers;
-    this.mode       = mode; // 'FFA' or '2v2'
-    this.peers      = {};   // peerId -> DataConnection
-    this.myId       = myId;
-    this.onReadyCB  = null;
+export default class Lobby {
+  constructor({ myId, maxPeers = 8, mode = 'FFA' }) {
+    this.peer      = new Peer(myId);
+    this.myId      = myId;
+    this.maxPeers  = maxPeers;
+    this.mode      = mode;   // 'FFA' or '2v2'
+    this.peers     = {};     // peerId → DataConnection
+    this.onReadyCB = null;
+    this.onData    = null;
 
-    this.peer.on('open',    id => console.log(`Peer open: ${id}`));
+    this.peer.on('open', id => console.log(`[Lobby] Peer open: ${id}`));
     this.peer.on('connection', conn => this._setupConn(conn));
-    this.peer.on('error',   err => console.error('Peer error:', err));
+    this.peer.on('error', err => console.error('[Lobby] Peer error:', err));
   }
 
-  // Join an existing room by connecting to the room host
-  joinRoom(hostId) {
-    this._connect(hostId);
-  }
-
-  // Create the room by waiting for others to join
+  // Host: call to start listening
   createRoom() {
-    // No-op: just open and wait for incoming connections
+    console.log('[Lobby] Room created, waiting for peers...');
   }
 
-  // Register a callback to fire when lobby is “full” or timed-out
-  onReady(callback) {
-    this.onReadyCB = callback;
-  }
-
-  // Internal: initiate a connection
-  _connect(peerId) {
-    const conn = this.peer.connect(peerId, { reliable: true });
+  // Guest: call to connect to host
+  joinRoom(hostId) {
+    const conn = this.peer.connect(hostId, { reliable: true });
     this._setupConn(conn);
   }
 
-  // Internal: shared connection setup
-  _setupConn(conn) {
-    conn.on('open', () => {
-      console.log(`Connected to ${conn.peer}`);
-      this.peers[conn.peer] = conn;
-      this._broadcastMeta();
-      this._checkReady();
-    });
-
-    conn.on('data', data => {
-      if (data.meta) {
-        this._handleMeta(data.meta);
-      }
-      // forward other data events to consumers
-      if (this.onData) this.onData(conn.peer, data);
-    });
-
-    conn.on('close', () => {
-      console.log(`Disconnected: ${conn.peer}`);
-      delete this.peers[conn.peer];
-    });
+  // Register a callback for when lobby is “full”
+  onReady(cb) {
+    this.onReadyCB = cb;
   }
 
-  // Share my metadata (id & mode) whenever peers change
-  _broadcastMeta() {
-    const meta = { id: this.myId, mode: this.mode };
-    Object.values(this.peers).forEach(c => c.send({ meta }));
-  }
-
-  // Handle incoming peer metadata
-  _handleMeta(meta) {
-    // you could store peer modes / IDs here if needed
-    console.log('Peer meta:', meta);
-  }
-
-  // Check if we’ve reached maxPeers (or at least 2 for 2v2)
-  _checkReady() {
-    const count = Object.keys(this.peers).length + 1;
-    if (count >= Math.min(this.maxPeers, this.mode === '2v2' ? 4 : this.maxPeers)) {
-      // Assign teams if 2v2
-      const playerIds = [this.myId, ...Object.keys(this.peers)].sort();
-      let teams = null;
-      if (this.mode === '2v2') {
-        teams = {
-          [playerIds[0]]: 1,
-          [playerIds[1]]: 1,
-          [playerIds[2]]: 2,
-          [playerIds[3]]: 2
-        };
-      }
-      if (this.onReadyCB) this.onReadyCB({ peers: playerIds, teams });
-    }
-  }
-
-  // Send game-data to all peers
+  // Send arbitrary data to all peers
   broadcast(obj) {
     Object.values(this.peers).forEach(c => {
       if (c.open) c.send(obj);
     });
   }
+
+  // Internal: wrap a new DataConnection
+  _setupConn(conn) {
+    conn.on('open', () => {
+      console.log(`[Lobby] Connected to ${conn.peer}`);
+      this.peers[conn.peer] = conn;
+      this._syncMeta();
+      this._checkReady();
+    });
+
+    conn.on('data', data => {
+      if (data.meta) this._handleMeta(data.meta);
+      if (this.onData) this.onData(conn.peer, data);
+    });
+
+    conn.on('close', () => {
+      console.log(`[Lobby] Disconnected: ${conn.peer}`);
+      delete this.peers[conn.peer];
+    });
+  }
+
+  // Share own ID/mode with everyone
+  _syncMeta() {
+    const meta = { id: this.myId, mode: this.mode };
+    this.broadcast({ meta });
+  }
+
+  _handleMeta(meta) {
+    console.log('[Lobby] Peer meta received:', meta);
+  }
+
+  // When enough players have joined, fire onReady
+  _checkReady() {
+    const total = Object.keys(this.peers).length + 1;
+    const needed = this.mode === '2v2' ? 4 : this.maxPeers;
+    if (total >= Math.min(needed, this.maxPeers)) {
+      const ids = [this.myId, ...Object.keys(this.peers)].sort();
+      let teams = null;
+      if (this.mode === '2v2') {
+        teams = { [ids[0]]:1, [ids[1]]:1, [ids[2]]:2, [ids[3]]:2 };
+      }
+      if (this.onReadyCB) this.onReadyCB({ players: ids, teams });
+    }
+  }
 }
-
-// Usage Example:
-//
-// const lobby = new Lobby({ myId: 'player123', roomId: 'roomABC', maxPeers: 8, mode: '2v2' });
-//
-// // If you’re the host:
-// lobby.createRoom();
-//
-// // If you’re joining:
-// lobby.joinRoom('player123');  // connect to host
-//
-// lobby.onReady(({ peers, teams }) => {
-//   console.log('Lobby ready! Players:', peers, 'Teams:', teams);
-//   // start the match...
-// });
-//
-// // To send data:
-// lobby.broadcast({ type: 'pos', x: px, y: py });
-//
-// // To receive data, set:
-// lobby.onData = (peerId, data) => { ... };
-
-export default Lobby;
